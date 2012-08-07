@@ -65,6 +65,7 @@ import threading
 
 import playitagainsam.util
 import playitagainsam.recorder
+import playitagainsam.player
 
 
 def main(argv):
@@ -102,4 +103,7 @@ def main(argv):
                 output = json.dumps(data, indent=2, sort_keys=True)
                 datafile.write(output)
     elif args.subcommand == "replay":
-        raise NotImplementedError
+        with open(args.datafile, "r") as datafile:
+            events = json.loads(datafile.read())["events"]
+        player = playitagainsam.player.Replayer(events)
+        player.run()

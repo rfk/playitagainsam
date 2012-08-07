@@ -19,7 +19,7 @@ import socket
 import json
 import uuid
 
-from playitagainsam.util import fork_pty, get_fd, no_echo
+from playitagainsam.util import forkexec_pty, get_fd, no_echo
 
 
 class Recorder(object):
@@ -84,7 +84,6 @@ class Recorder(object):
         # Clean up any terminals that are open when we're asked to stop.
         for term in self.terminals:
             self._handle_close_terminal(term)
-        self._ping_pipe_r, self._ping_pipe_w = os.pipe()
 
     def stop(self):
         self.running = False
@@ -165,7 +164,7 @@ class Recorder(object):
         # Fork the requested process behind a pty.
         if isinstance(shell, basestring):
             shell = [shell]
-        proc_pid, proc_fd = fork_pty(*shell)
+        proc_pid, proc_fd = forkexec_pty(*shell)
         # Assign a new id for the terminal
         term = uuid.uuid4().hex
         self.terminals[term] = client_sock, proc_fd, proc_pid
@@ -217,4 +216,16 @@ def spawn_in_recorder(server_addr, shell, stdin=None, stdout=None):
     sock.connect(server_addr)
     data = json.dumps(shell)
     sock.sendall("%d %s\n" % (len(data), data))
-    proxy_to_recorder(sock, stdin=stdin, stdout=stdout)
+    try:
+        proxy_to_recorder(sock, stdin=stdin, stdout=stdout)
+    finally:
+        sock.close()
+
+
+def proxy_to_recorder_addr(addr, stdin=None, stdout=None):
+    sock = socket.socket()
+    sock.connect(addr)
+    try:
+        proxy_to_recorder(sock, stdin=stdin, stdout=stdout)
+    finally:
+        sock.close()

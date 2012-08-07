@@ -2,207 +2,96 @@
 #  All rights reserved; available under the terms of the MIT License.
 """
 
-playitagainsam:  record and replay interactive terminal sessions
-================================================================
-
-Playitagainsam is a tool and a corresponding file format for recording
-and replating interactive terminal sessions.  It takes inspiration from
-the unix commands "script" and "ttyrec" and the python tool "playerpiano".
-
-Useful features include:
-
-    * ability to replay with fake typing
-    * ability to replay sessions in multiple terminals
-
-Run the software using either the included "pias" script, or using the
-python module-running syntax of "python -m playitagainsam".
-
-Record a session:
-
-    $ pias record
-
-Join an existing recording as a new terminal:
-
-    $ pias record --join addr
-
-Replay a recorded session:
-
-    $ pias replay
-
-
-Session Log Format
-------------------
-
-Sessions are recorded as a JSON file.  The outer JSON object contains metadata
-along with an "events" member.  Each event is one of the following types:
-
-    { type: "BEGIN", term: <uuid> }
-    { type: "READ", term: <uuid>, data: <data> }
-    { type: "WRITE", term: <uuid>, data: <data> }
-    { type: "ECHO", term: <uuid>, data: <data> }
-    { type: "END", term: <uuid> }
-
-    {
-      events: [
-      ]
-    }
+playitagainsam.player: replay interactive terminal sessions
+===========================================================
 
 """
 
-__ver_major__ = 0
-__ver_minor__ = 1
-__ver_patch__ = 0
-__ver_sub__ = ""
-__ver_tuple__ = (__ver_major__,__ver_minor__,__ver_patch__,__ver_sub__)
-__version__ = "%d.%d.%d%s" % __ver_tuple__
-
-
 import os
 import sys
-import tty
-import pty
-import termios
-import select
-import optparse
 import time
+import socket
 
-from subprocess import MAXFD
-
-
-class no_echo(object):
-    """Context-manager that blocks echoing of keys typed in tty."""
-
-    def __init__(self, fd=None):
-        if fd is None:
-            fd = sys.stdin.fileno()
-        elif hasattr(fd, "fileno"):
-            fd = fd.fileno()
-        self.fd = fd
-
-    def __enter__(self):
-        self.old_attr = termios.tcgetattr(self.fd)
-        new_attr = list(self.old_attr)
-        new_attr[3] = new_attr[3] & ~termios.ECHO
-        termios.tcsetattr(self.fd, termios.TCSADRAIN, new_attr)
-        tty.setraw(sys.stdin)
-
-    def __exit__(self, exc_typ, exc_val, exc_tb):
-        termios.tcsetattr(self.fd, termios.TCSADRAIN, self.old_attr)
+from playitagainsam.util import no_echo, get_fd, forkexec
 
 
-def get_fd(file_or_fd, default=None):
-    fd = file_or_fd
-    if fd is None:
-        fd = default
-    if hasattr(fd, "fileno"):
-        fd = fd.fileno()
-    return fd
+class Replayer(object):
 
+    def __init__(self, events):
+        self.events = list(events)
+        self._ping_pipe_r, self._ping_pipe_w = os.pipe()
+        self.running = False
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.sock.bind(("localhost", 12345))
+        self.sock.listen(1)
+        self.terminals = {}
+        self.view_fds = {}
 
-def record_session(logfile, argv=None, stdin=None, stdout=None):
-    # Find the program to execute.  Use the default shell by default.
-    if argv is None:
-        argv = os.environ.get("SHELL", "/bin/sh")
-    if isinstance(argv, basestring):
-        argv = [argv]
-    # Grab file descriptors for stdin and stdout, we're going to
-    # to lots of low-level IO on them.
-    stdin_fd = get_fd(stdin, default=sys.stdin)
-    stdout_fd = get_fd(stdout, default=sys.stdout)
-    # Fork the child with a pty.
-    child_pid, child_fd = pty.fork()
-    if child_pid == 0:
-        os.closerange(3, MAXFD)
-        os.execv(argv[0], argv)
-    def wait_for_activity():
-        ready, _, _ = select.select([child_fd, stdin_fd], [], [])
-        return ready
-    def read_output():
-        output = []
+    def __del__(self):
+        self._cleanup_pipes()
+
+    def _cleanup_pipes(self, os=os):
+        if getattr(self, "_ping_pipe_r", None) is not None:
+            os.close(self._ping_pipe_r)
+            self._ping_pipe_r = None
+        if getattr(self, "_ping_pipe_w", None) is not None:
+            os.close(self._ping_pipe_w)
+            self._ping_pipe_w = None
+
+    def stop(self):
+        self.running = False
+        os.write(self._ping_pipe_w, "X")
+
+    def run(self):
+        self.running = True
+        event_stream = self._iter_events()
         try:
-            ready, _, _ = select.select([child_fd, stdin_fd], [], [])
-            while child_fd in ready:
-                c = os.read(child_fd, 1)
-                if not c:
-                    break
-                output.append(c)
-                os.write(stdout_fd, c)
-                ready, _, _ = select.select([child_fd, stdin_fd], [], [], 0)
-        finally:
-            if output:
-                logfile.write("W %s\n" % ("".join(output).encode("string-escape"),))
-    def read_keypress():
-        c = ""
-        ready, _, _ = select.select([child_fd, stdin_fd], [], [])
-        if stdin_fd in ready:
-            c = os.read(stdin_fd, 1)
-            if c:
-                logfile.write("R %s\n" % (c.encode("string-escape"),))
-                os.write(child_fd, c)
-        return c
-    # Shuffle data back and forth between our terminal and the pty.
-    # Log everything.
-    with no_echo(stdin_fd):
-        try:
-            while True:
-                ts1 = time.time()
-                ready = wait_for_activity()
-                ts2 = time.time()
-                if stdin_fd in ready:
-                    read_keypress()
-                    read_output()
-                else:
-                    logfile.write("P %.6f\n" % (ts2 - ts1,))
-                    read_output()
-        except EnvironmentError:
+            while self.running:
+                event = event_stream.next()
+                if event["act"] == "OPEN":
+                    self._do_open_terminal(event["term"])
+                elif event["act"] == "CLOSE":
+                    self._do_close_terminal(event["term"])
+                elif event["act"] == "PAUSE":
+                    time.sleep(event["duration"])
+                elif event["act"] == "READ":
+                    self._do_read(event["term"], event["data"])
+                elif event["act"] == "WRITE":
+                    self._do_write(event["term"], event["data"])
+        except StopIteration:
             pass
+        for term in self.terminals:
+            self._do_close_terminal(term)
 
+    def _iter_events(self):
+        for event in self.events:
+            if event["act"] == "ECHO":
+                for c in  event["data"]:
+                    yield { "act": "READ", "term": event["term"], "data": c }
+                    yield { "act": "WRITE", "term": event["term"], "data": c }
+            elif event["act"] == "READ":
+                for c in  event["data"]:
+                    yield { "act": "READ", "term": event["term"], "data": c }
+            else:
+                yield event
 
-def replay_session(logfile, stdin=None, stdout=None):
-    # Grab file descriptors for stdin and stdout, we're going to
-    # to lots of low-level IO on them.
-    stdin_fd = get_fd(stdin, default=sys.stdin)
-    stdout_fd = get_fd(stdout, default=sys.stdout)
-    # Replay the session, controlling timing from keyboard.
-    with no_echo(stdin):
-        try:
-            while True:
-                ln = logfile.readline()
-                if not ln:
-                    break
-                act = ln[0]
-                data = ln[2:-1].decode("string-escape")
-                if act == "P":
-                    time.sleep(float(data))
-                elif act == "W":
-                    os.write(stdout_fd, data)
-                elif act == "R":
-                    c = os.read(stdin_fd, 1)
-                    if data in ("\n", "\r"):
-                        while c not in ("\n", "\r"):
-                            c = os.read(stdin_fd, 1)
-            c = os.read(stdin_fd, 1)
+    def _do_open_terminal(self, term):
+        child_pid = forkexec("/usr/bin/gnome-terminal", "-x", "/bin/bash", "-c", sys.executable + " -c \"from playitagainsam.recorder import proxy_to_recorder_addr; proxy_to_recorder_addr(('localhost', 12345))\" ; sleep 10")
+        view_sock, _ = self.sock.accept()
+        self.terminals[term] = (view_sock, child_pid)
+
+    def _do_close_terminal(self, term):
+        view_sock, client_pid = self.terminals[term]
+        view_sock.close()
+
+    def _do_read(self, term, wanted):
+        view_sock = self.terminals[term][0]
+        c = view_sock.recv(1)
+        if wanted in ("\n", "\r"):
             while c not in ("\n", "\r"):
-                c = os.read(stdin_fd, 1)
-        except EnvironmentError:
-            pass
+                c = view_sock.recv(1)
 
-
-if __name__ == "__main__":
-
-    parser = optparse.OptionParser()
-    parser.add_option("-f", "--logfile", default="session.log",
-                      help="file in which to store the session log",)
-    parser.add_option("-c", "--command",
-                      help="command to execute (by default, your shell)")
-
-    opts, args = parser.parse_args(sys.argv)
-
-    if args[1] == "record":
-        with open(opts.logfile, "w") as logfile:
-            record_session(logfile, opts.command)
-    elif args[1] == "replay":
-        with open(opts.logfile, "r") as logfile:
-            replay_session(logfile)
-    else:
-        raise ValueError("unknown command %r" % (args[1],))
+    def _do_write(self, term, data):
+        view_sock = self.terminals[term][0]
+        view_sock.sendall(data)

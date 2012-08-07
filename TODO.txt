@@ -2,4 +2,5 @@
  * editing out ECHO of backspace
  * child process watching, cleanup etc.
  * robustness and error handling.
+ * record (and maybe control?) the size of each terminal
 

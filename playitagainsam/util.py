@@ -50,7 +50,16 @@ def get_fd(file_or_fd, default=None):
     return fd
 
 
-def fork_pty(*argv):
+def forkexec(*argv):
+    """Fork a child process."""
+    child_pid = os.fork()
+    if child_pid == 0:
+        os.closerange(3, MAXFD)
+        os.execv(argv[0], argv)
+    return child_pid
+
+
+def forkexec_pty(*argv):
     """Fork a child process attached to a pty."""
     child_pid, child_fd = pty.fork()
     if child_pid == 0:
