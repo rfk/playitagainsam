@@ -1,0 +1,7 @@
+#!/usr/bin/env python
+
+if __name__ == "__main__":
+    import sys
+    import playitagainsam
+    res = playitagainsam.main(sys.argv)
+    sys.exit(res)
