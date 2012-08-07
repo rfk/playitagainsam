@@ -1,5 +1,8 @@
 
- * editing out ECHO of backspace
+ * factor out a common "controller" base class, along with proxy_to_controller
+   helper function
+ * editing out ECHO of backspace, so I can stuff up during recording
+   and have it magically fixed upon playback
  * child process watching, cleanup etc.
  * robustness and error handling.
  * record (and maybe control?) the size of each terminal
