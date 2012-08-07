@@ -1,0 +1,5 @@
+
+ * editing out ECHO of backspace
+ * child process watching, cleanup etc.
+ * robustness and error handling.
+
