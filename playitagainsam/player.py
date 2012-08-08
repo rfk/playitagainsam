@@ -13,41 +13,22 @@ import time
 import socket
 
 from playitagainsam.util import no_echo, get_fd, forkexec
+from playitagainsam.coordinator import SocketCoordinator, proxy_to_coordinator
 
 
-class Replayer(object):
+class Player(SocketCoordinator):
 
-    def __init__(self, events):
+    def __init__(self, events, terminal, sock_path):
         self.events = list(events)
-        self._ping_pipe_r, self._ping_pipe_w = os.pipe()
-        self.running = False
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.sock.bind(("localhost", 12345))
-        self.sock.listen(1)
+        self.terminal = terminal
+        super(Player, self).__init__(sock_path)
         self.terminals = {}
         self.view_fds = {}
 
-    def __del__(self):
-        self._cleanup_pipes()
-
-    def _cleanup_pipes(self, os=os):
-        if getattr(self, "_ping_pipe_r", None) is not None:
-            os.close(self._ping_pipe_r)
-            self._ping_pipe_r = None
-        if getattr(self, "_ping_pipe_w", None) is not None:
-            os.close(self._ping_pipe_w)
-            self._ping_pipe_w = None
-
-    def stop(self):
-        self.running = False
-        os.write(self._ping_pipe_w, "X")
-
     def run(self):
-        self.running = True
         event_stream = self._iter_events()
         try:
-            while self.running:
+            while True:
                 event = event_stream.next()
                 if event["act"] == "OPEN":
                     self._do_open_terminal(event["term"])
@@ -61,8 +42,12 @@ class Replayer(object):
                     self._do_write(event["term"], event["data"])
         except StopIteration:
             pass
+
+    def cleanup(self):
         for term in self.terminals:
-            self._do_close_terminal(term)
+            view_sock, = self.terminals[term]
+            view_sock.close()
+        super(Player, self).cleanup()
 
     def _iter_events(self):
         for event in self.events:
@@ -77,12 +62,21 @@ class Replayer(object):
                 yield event
 
     def _do_open_terminal(self, term):
-        child_pid = forkexec("/usr/bin/gnome-terminal", "-x", "/bin/bash", "-c", sys.executable + " -c \"from playitagainsam.recorder import proxy_to_recorder_addr; proxy_to_recorder_addr(('localhost', 12345))\" ; sleep 10")
+        ready = self.wait_for_data([self.sock], 0.1)
+        if self.sock not in ready:
+            # XXX TODO: wait for a keypress from some existing terminal
+            # to trigger the appearance of the terminal.
+            join_cmd = list(sys.argv)
+            join_cmd.insert(1, "--join")
+            forkexec(self.terminal, "-x", *join_cmd)
         view_sock, _ = self.sock.accept()
-        self.terminals[term] = (view_sock, child_pid)
+        self.terminals[term] = (view_sock,)
 
     def _do_close_terminal(self, term):
-        view_sock, client_pid = self.terminals[term]
+        view_sock, = self.terminals[term]
+        c = view_sock.recv(1)
+        while c not in ("\n", "\r"):
+            c = view_sock.recv(1)
         view_sock.close()
 
     def _do_read(self, term, wanted):
@@ -95,3 +89,7 @@ class Replayer(object):
     def _do_write(self, term, data):
         view_sock = self.terminals[term][0]
         view_sock.sendall(data)
+
+
+def proxy_to_player(sock_path, **kwds):
+    return proxy_to_coordinator(sock_path, **kwds)

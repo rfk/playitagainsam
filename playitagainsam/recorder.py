@@ -6,8 +6,6 @@ playitagainsam.recorder:  record interactive terminal sessions
 ==============================================================
 
 This module provides the ability to record interactive terminal sessions.
-They are recorded by means of a single "recording master" process along
-with one "recording slave" per terminal used during the session.
 
 """
 
@@ -20,48 +18,33 @@ import json
 import uuid
 
 from playitagainsam.util import forkexec_pty, get_fd, no_echo
+from playitagainsam.coordinator import SocketCoordinator, proxy_to_coordinator
 
 
-class Recorder(object):
+class Recorder(SocketCoordinator):
     """Object for recording activity in a session."""
 
-    def __init__(self, eventlog):
+    def __init__(self, eventlog, sock_path):
         self.eventlog = eventlog
-        self._ping_pipe_r, self._ping_pipe_w = os.pipe()
-        self.running = False
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.sock.bind(("localhost", 12345))
-        self.sock.listen(1)
+        super(Recorder, self).__init__(sock_path)
         self.terminals = {}
         self.view_fds = {}
         self.proc_fds = {}
 
-    def __del__(self):
-        self._cleanup_pipes()
-
-    def _cleanup_pipes(self, os=os):
-        if getattr(self, "_ping_pipe_r", None) is not None:
-            os.close(self._ping_pipe_r)
-            self._ping_pipe_r = None
-        if getattr(self, "_ping_pipe_w", None) is not None:
-            os.close(self._ping_pipe_w)
-            self._ping_pipe_w = None
-
     def run(self):
-        self.running = True
         # Loop waiting for the first terminal to be opened.
-        while self.running and not self.terminals:
-            ready = self._wait_for_activity([self.sock])
+        while not self.terminals:
+            ready = self.wait_for_data([self.sock])
             if self.sock in ready:
                 client_sock, _ = self.sock.accept()
                 self._handle_open_terminal(client_sock)
         # Loop waiting for activity to occur, or all terminals to close.
-        while self.running and self.terminals:
+        while self.terminals:
             # Time how long it takes, in case we need to trigger output
             # via a pause in the event stream.
             t1 = time.time()
-            ready = self._wait_for_activity()
+            fds = [self.sock] + list(self.view_fds) + list(self.proc_fds)
+            ready = self.wait_for_data(fds)
             t2 = time.time()
             if not ready:
                 continue
@@ -81,25 +64,13 @@ class Recorder(object):
             # Now process any output that has been triggered.
             # This will loop and consume as much output as is available.
             self._handle_output()
-        # Clean up any terminals that are open when we're asked to stop.
+
+    def cleanup(self):
         for term in self.terminals:
-            self._handle_close_terminal(term)
-
-    def stop(self):
-        self.running = False
-        os.write(self._ping_pipe_w, "X")
-
-    def _wait_for_activity(self, fds=None, timeout=None):
-        if fds is not None:
-            fds = [self._ping_pipe_r] + list(fds)
-        else:
-            fds = [self._ping_pipe_r, self.sock] + \
-                  list(self.view_fds) + list(self.proc_fds)
-        try:
-            ready, _, _ = select.select(fds, [], fds, timeout)
-            return ready
-        except OSError:
-            return []
+            client_sock, proc_fd, proc_pid = self.terminals[term]
+            client_sock.close()
+            os.close(proc_fd)
+        super(Recorder, self).cleanup()
 
     def _handle_input(self, view_fd):
         try:
@@ -120,7 +91,7 @@ class Recorder(object):
                 os.write(proc_fd, c)
 
     def _handle_output(self):
-        ready = self._wait_for_activity(self.proc_fds)
+        ready = self.wait_for_data(self.proc_fds)
         # Process output from each ready process in turn.
         for proc_fd in ready:
             term = self.proc_fds[proc_fd]
@@ -128,7 +99,7 @@ class Recorder(object):
             # Loop through one character at a time, consuming as
             # much output from the process as is available.
             proc_ready = [proc_fd]
-            while proc_ready and self.running:
+            while proc_ready:
                 try:
                     c = os.read(proc_fd, 1)
                     if not c:
@@ -145,7 +116,7 @@ class Recorder(object):
                     })
                     # Forward it to the corresponding terminal view.
                     os.write(view_fd, c)
-                    proc_ready = self._wait_for_activity([proc_fd], 0)
+                    proc_ready = self.wait_for_data([proc_fd], 0)
 
     def _handle_open_terminal(self, client_sock):
         # Read the program to start, in form "SIZE JSON-DATA\n"
@@ -194,38 +165,7 @@ class Recorder(object):
         })
 
 
-def proxy_to_recorder(sock, stdin=None, stdout=None):
-    stdin_fd = get_fd(stdin, sys.stdin)
-    stdout_fd = get_fd(stdout, sys.stdout)
-    with no_echo(stdin_fd):
-        while True:
-            ready, _, _ = select.select([stdin_fd, sock], [], [])
-            if stdin_fd in ready:
-                c = os.read(stdin_fd, 1)
-                if c:
-                    sock.send(c)
-            if sock in ready:
-                c = sock.recv(1024)
-                if not c:
-                    break
-                os.write(stdout_fd, c)
-
-
-def spawn_in_recorder(server_addr, shell, stdin=None, stdout=None):
-    sock = socket.socket()
-    sock.connect(server_addr)
+def spawn_in_recorder(sock_path, shell, **kwds):
     data = json.dumps(shell)
-    sock.sendall("%d %s\n" % (len(data), data))
-    try:
-        proxy_to_recorder(sock, stdin=stdin, stdout=stdout)
-    finally:
-        sock.close()
-
-
-def proxy_to_recorder_addr(addr, stdin=None, stdout=None):
-    sock = socket.socket()
-    sock.connect(addr)
-    try:
-        proxy_to_recorder(sock, stdin=stdin, stdout=stdout)
-    finally:
-        sock.close()
+    header = "%d %s\n" % (len(data), data)
+    return proxy_to_coordinator(sock_path, header, **kwds)

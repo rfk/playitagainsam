@@ -70,40 +70,54 @@ import playitagainsam.player
 
 def main(argv):
     parser = argparse.ArgumentParser()
+    parser.add_argument("--join", action="store_true",
+                        help="join an existing record/replay session")
     subparsers = parser.add_subparsers(dest="subcommand")
+
     # The "record" command.
     parser_record = subparsers.add_parser("record")
     parser_record.add_argument("datafile")
     parser_record.add_argument("--shell",
+                               help="the shell to execute",
                                default=os.environ.get("SHELL", "/bin/sh"))
-    parser_record.add_argument("--join")
     # The "replay" command.
     parser_replay = subparsers.add_parser("replay")
     parser_replay.add_argument("datafile")
-    parser_replay.add_argument("--term")
+    parser_replay.add_argument("--terminal",
+                               help="the terminal program to execute",
+                               default="/usr/bin/gnome-terminal")
 
     args = parser.parse_args(argv[1:])
 
-    if args.subcommand == "record":
-        if args.join is None:
-            events = playitagainsam.util.EventLog()
-            recorder = playitagainsam.recorder.Recorder(events)
-            t = threading.Thread(target=recorder.run)
-            t.setDaemon(True)
-            t.start()
-            addr = ("localhost", 12345)
-        else:
-            addr = args.join.split(":")
-            addr = (addr[0], int(addr[1]))
-        playitagainsam.recorder.spawn_in_recorder(addr, args.shell)
-        if args.join is None:
-            t.join()
-            with open(args.datafile, "w") as datafile:
-                data = {"events": events.events}
-                output = json.dumps(data, indent=2, sort_keys=True)
-                datafile.write(output)
-    elif args.subcommand == "replay":
-        with open(args.datafile, "r") as datafile:
-            events = json.loads(datafile.read())["events"]
-        player = playitagainsam.player.Replayer(events)
-        player.run()
+    sock_path = args.datafile + ".sock"
+    if os.path.exists(sock_path) and not args.join:
+        raise RuntimeError("session already in progress")
+
+    try:
+        if args.subcommand == "record":
+            recorder = None
+            if not args.join:
+                events = playitagainsam.util.EventLog()
+                recorder = playitagainsam.recorder.Recorder(events, sock_path)
+                recorder.start()
+            playitagainsam.recorder.spawn_in_recorder(sock_path, args.shell)
+            if recorder is not None:
+                recorder.join()
+                with open(args.datafile, "w") as datafile:
+                    data = {"events": events.events}
+                    output = json.dumps(data, indent=2, sort_keys=True)
+                    datafile.write(output)
+
+        elif args.subcommand == "replay":
+            if not args.join:
+                with open(args.datafile, "r") as datafile:
+                     events = json.loads(datafile.read())["events"]
+                player = playitagainsam.player.Player(events, args.terminal, sock_path)
+                player.start()
+            playitagainsam.player.proxy_to_player(sock_path)
+        if player is not None:
+            player.join()
+
+    finally:
+        if os.path.exists(sock_path) and not args.join:
+            os.unlink(sock_path)
