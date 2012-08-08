@@ -1,7 +1,9 @@
 
  * editing out ECHO of backspace, so I can stuff up during recording
    and have it magically fixed upon playback
+ * proxy of SIGINT, maybe other signals
  * child process watching, cleanup etc.
- * robustness and error handling.
+    * maybe no necessary?
+ * general robustness and error handling.
  * record (and maybe control?) the size of each terminal
 
