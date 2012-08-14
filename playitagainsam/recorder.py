@@ -10,23 +10,20 @@ This module provides the ability to record interactive terminal sessions.
 """
 
 import os
-import sys
 import time
-import select
-import socket
-import json
 import uuid
 
-from playitagainsam.util import forkexec_pty, get_fd, no_echo
+from playitagainsam.util import forkexec_pty, get_default_shell
 from playitagainsam.coordinator import SocketCoordinator, proxy_to_coordinator
 
 
 class Recorder(SocketCoordinator):
     """Object for recording activity in a session."""
 
-    def __init__(self, eventlog, sock_path):
-        self.eventlog = eventlog
+    def __init__(self, sock_path, eventlog, shell=None):
         super(Recorder, self).__init__(sock_path)
+        self.eventlog = eventlog
+        self.shell = shell or get_default_shell()
         self.terminals = {}
         self.view_fds = {}
         self.proc_fds = {}
@@ -82,7 +79,7 @@ class Recorder(SocketCoordinator):
                 term = self.view_fds[view_fd]
                 proc_fd = self.terminals[term][1]
                 # Log it to the eventlog.
-                self.eventlog.append({
+                self.eventlog.write_event({
                     "act": "READ",
                     "term": term,
                     "data": c,
@@ -109,7 +106,7 @@ class Recorder(SocketCoordinator):
                     proc_ready = []
                 else:
                     # Log it to the eventlog.
-                    self.eventlog.append({
+                    self.eventlog.write_event({
                         "act": "WRITE",
                         "term": term,
                         "data": c,
@@ -119,36 +116,21 @@ class Recorder(SocketCoordinator):
                     proc_ready = self.wait_for_data([proc_fd], 0)
 
     def _handle_open_terminal(self, client_sock):
-        # Read the program to start, in form "SIZE JSON-DATA\n"
-        size = 0
-        c = client_sock.recv(1)
-        while c != " ":
-            size = (size * 10) + int(c)
-            c = client_sock.recv(1)
-        data = client_sock.recv(size)
-        while len(data) < size + 1:
-            more_data = client_sock.recv(size + 1 - len(data))
-            if not more_data:
-                raise ValueError("client sent incomplete data")
-            data += more_data
-        shell = json.loads(data.strip())
-        # Fork the requested process behind a pty.
-        if isinstance(shell, basestring):
-            shell = [shell]
-        proc_pid, proc_fd = forkexec_pty(*shell)
+        # Fork a new shell behind a pty.
+        proc_pid, proc_fd = forkexec_pty([self.shell])
         # Assign a new id for the terminal
         term = uuid.uuid4().hex
         self.terminals[term] = client_sock, proc_fd, proc_pid
         self.view_fds[client_sock.fileno()] = term
         self.proc_fds[proc_fd] = term
         # Append it to the eventlog.
-        self.eventlog.append({
+        self.eventlog.write_event({
             "act": "OPEN",
             "term": term,
         })
 
     def _handle_close_terminal(self, term):
-        self.eventlog.append({
+        self.eventlog.write_event({
             "act": "CLOSE",
             "term": term,
         })
@@ -159,13 +141,11 @@ class Recorder(SocketCoordinator):
         os.close(proc_fd)
 
     def _handle_pause(self, duration):
-        self.eventlog.append({
+        self.eventlog.write_event({
             "act": "PAUSE",
             "duration": duration,
         })
 
 
-def spawn_in_recorder(sock_path, shell, **kwds):
-    data = json.dumps(shell)
-    header = "%d %s\n" % (len(data), data)
-    return proxy_to_coordinator(sock_path, header, **kwds)
+def join_recorder(sock_path, **kwds):
+    return proxy_to_coordinator(sock_path, **kwds)

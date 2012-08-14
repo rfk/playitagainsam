@@ -12,9 +12,8 @@ import sys
 import tty
 import pty
 import termios
-import select
-import optparse
-import time
+
+import psutil
 
 from subprocess import MAXFD
 
@@ -50,54 +49,117 @@ def get_fd(file_or_fd, default=None):
     return fd
 
 
-def forkexec(*argv):
+def forkexec(argv, env=None):
     """Fork a child process."""
     child_pid = os.fork()
     if child_pid == 0:
         os.closerange(3, MAXFD)
-        os.execv(argv[0], argv)
+        environ = os.environ.copy()
+        if env is not None:
+            environ.update(env)
+        os.execve(argv[0], argv, environ)
     return child_pid
 
 
-def forkexec_pty(*argv):
+def forkexec_pty(argv, env=None):
     """Fork a child process attached to a pty."""
     child_pid, child_fd = pty.fork()
     if child_pid == 0:
         os.closerange(3, MAXFD)
-        os.execv(argv[0], argv)
+        environ = os.environ.copy()
+        if env is not None:
+            environ.update(env)
+        os.execve(argv[0], argv, environ)
     return child_pid, child_fd
 
 
-class EventLog(object):
+def find_executable(filename, environ=None):
+    """Find an executable by searching the user's $PATH."""
+    if environ is None:
+        environ = os.environ
+    path = environ.get("PATH", "/usr/local/bin:/usr/bin:/bin").split(":")
+    for dirpath in path:
+        dirpath = os.path.abspath(dirpath.strip())
+        filepath = os.path.normpath(os.path.join(dirpath, filename))
+        if os.path.exists(filepath):
+            return filepath
+    return None
 
-    def __init__(self):
-        self.events = []
 
-    def append(self, event):
-        # Append an event to the event log.
-        # We try to do some basic simplifications.
-        # Collapse consecutive "PAUSE" events into a single pause.
-        if event["act"] == "PAUSE":
-            if self.events and self.events[-1]["act"] == "PAUSE":
-                self.events[-1]["duration"] += event["duration"]
-                return
-        # Try to collapse consecutive IO events on the same terminal.
-        if event["act"] == "WRITE" and self.events:
-            if self.events[-1].get("term") == event["term"]:
-                # Collapse consecutive writes into a single chunk.
-                if self.events[-1]["act"] == "WRITE":
-                    self.events[-1]["data"] += event["data"]
-                    return
-                # Collapse read/write of same data into an "ECHO".
-                if self.events[-1]["act"] == "READ":
-                    if self.events[-1]["data"] == event["data"]:
-                        self.events[-1]["act"] = "ECHO"
-                        # Collapse consecutive "ECHO" events.
-                        if len(self.events) > 1:
-                            if self.events[-2]["act"] == "ECHO":
-                                if self.events[-2]["term"] == event["term"]:
-                                    self.events[-2]["data"] += event["data"]
-                                    del self.events[-1]
-                        return
-        # Otherwise, just add it to the list.
-        self.events.append(event)
+_ANCESTOR_PROCESSES = []
+
+
+def get_ancestor_processes():
+    """Get a list of the executables of all ancestor processes."""
+    if not _ANCESTOR_PROCESSES:
+        proc = psutil.Process(os.getpid())
+        while proc.parent is not None:
+            try:
+                _ANCESTOR_PROCESSES.append(proc.parent.exe)
+                proc = proc.parent
+            except psutil.error.Error:
+                break
+    return _ANCESTOR_PROCESSES
+
+
+def get_default_shell(environ=None):
+    """Get the user's default shell program."""
+    if environ is None:
+        environ = os.environ
+    # If the option is specified in the environment, respect it.
+    if "PIAS_OPT_SHELL" in environ:
+        return environ["PIAS_OPT_SHELL"]
+    # Find all candiate shell programs.
+    shells = []
+    for filename in (environ.get("SHELL"), "bash", "sh"):
+        if filename is not None:
+            filepath = find_executable(filename, environ)
+            if filepath is not None:
+                shells.append(filepath)
+    # If one of them is an ancestor process, use that.
+    for ancestor in get_ancestor_processes():
+        if ancestor in shells:
+            return ancestor
+    # Otherwise use the first option that we found.
+    for shell in shells:
+        return shell
+    raise ValueError("Could not find a shell")
+
+
+def get_default_terminal(environ=None):
+    """Get the user's default terminal program."""
+    if environ is None:
+        environ = os.environ
+    # If the option is specified in the environment, respect it.
+    if "PIAS_OPT_TERMINAL" in environ:
+        return environ["PIAS_OPT_TERMINAL"]
+    # Find all candiate terminal programs.
+    terminals = []
+    colorterm = environ.get("COLORTERM")
+    for filename in (colorterm, "gnome-terminal", "konsole", "xterm"):
+        if filename is not None:
+            filepath = find_executable(filename, environ)
+            if filepath is not None:
+                terminals.append(filepath)
+    # If one of them is an ancestor process, use that.
+    for ancestor in get_ancestor_processes():
+        if ancestor in terminals:
+            return ancestor
+    # Otherwise use the first option that we found.
+    for term in terminals:
+        return term
+    raise ValueError("Could not find a terminal")
+
+
+def get_pias_script(environ=None):
+    """Get the path to the playitagainsam command-line script."""
+    if os.path.basename(sys.argv[0]) == "pias":
+        return sys.argv[0]
+    filepath = find_executable("pias", environ)
+    if filepath is not None:
+        return filepath
+    filepath = os.path.join(os.path.dirname(__file__), "__main__.py")
+    # XXX TODO: check if executable
+    if os.path.exists(filepath):
+        return filepath
+    raise RuntimeError("Could not locate the pias script.")

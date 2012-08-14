@@ -13,7 +13,6 @@ for one or more simulated terminals.  Each terminal is associated with a
 
 import os
 import sys
-import time
 import select
 import socket
 import threading
@@ -52,6 +51,7 @@ class SocketCoordinator(object):
     def start(self):
         assert self.__run_thread is None
         self.__running = True
+
         def runit():
             try:
                 self.run()
@@ -59,6 +59,7 @@ class SocketCoordinator(object):
                 pass
             finally:
                 self.cleanup()
+
         self.__run_thread = threading.Thread(target=runit)
         self.__run_thread.start()
 
@@ -67,7 +68,7 @@ class SocketCoordinator(object):
         self.__running = False
         os.write(self.__ping_pipe_w, "X")
 
-    def join(self):
+    def wait(self):
         self.__run_thread.join()
 
     def run(self):
@@ -94,8 +95,6 @@ def proxy_to_coordinator(socket_path, header=None, stdin=None, stdout=None):
         stdin_fd = get_fd(stdin, sys.stdin)
         stdout_fd = get_fd(stdout, sys.stdout)
         with no_echo(stdin_fd):
-            if header is not None:
-                sock.sendall(header)
             while True:
                 ready, _, _ = select.select([stdin_fd, sock], [], [])
                 if stdin_fd in ready:

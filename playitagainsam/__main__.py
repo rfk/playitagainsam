@@ -1,3 +1,5 @@
+#!/bin/env python
+#
 #  Copyright (c) 2012, Ryan Kelly.
 #  All rights reserved; available under the terms of the MIT License.
 
