@@ -13,7 +13,7 @@ import os
 import time
 import uuid
 
-from playitagainsam.util import forkexec_pty, get_default_shell
+from playitagainsam.util import forkexec_pty, get_default_shell, get_terminal_size
 from playitagainsam.coordinator import SocketCoordinator, proxy_to_coordinator
 
 
@@ -124,9 +124,11 @@ class Recorder(SocketCoordinator):
         self.view_fds[client_sock.fileno()] = term
         self.proc_fds[proc_fd] = term
         # Append it to the eventlog.
+        # XXX TODO: this assumes all terminals are the same size as mine.
         self.eventlog.write_event({
             "act": "OPEN",
             "term": term,
+            "size": get_terminal_size(1)
         })
 
     def _handle_close_terminal(self, term):

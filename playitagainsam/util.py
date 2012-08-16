@@ -12,6 +12,9 @@ import sys
 import tty
 import pty
 import termios
+import fcntl
+import struct
+import array
 
 import psutil
 
@@ -61,7 +64,7 @@ def forkexec(argv, env=None):
     return child_pid
 
 
-def forkexec_pty(argv, env=None):
+def forkexec_pty(argv, env=None, size=None):
     """Fork a child process attached to a pty."""
     child_pid, child_fd = pty.fork()
     if child_pid == 0:
@@ -70,6 +73,12 @@ def forkexec_pty(argv, env=None):
         if env is not None:
             environ.update(env)
         os.execve(argv[0], argv, environ)
+    if size is None:
+        try:
+            size = get_terminal_size(1)
+        except Exception:
+            size = (80, 24)
+    set_terminal_size(child_fd, size)
     return child_pid, child_fd
 
 
@@ -163,3 +172,16 @@ def get_pias_script(environ=None):
     if os.path.exists(filepath):
         return filepath
     raise RuntimeError("Could not locate the pias script.")
+
+
+def get_terminal_size(fd):
+    """Get the (width, height) size tuple for the given pty fd."""
+    sizebuf = array.array('h', [0, 0])
+    fcntl.ioctl(fd, termios.TIOCGWINSZ, sizebuf, True)
+    return tuple(reversed(sizebuf))
+
+
+def set_terminal_size(fd, size):
+    """Set the (width, height) size tuple for the given pty fd."""
+    sizebuf = array.array('h', reversed(size))
+    fcntl.ioctl(fd, termios.TIOCSWINSZ, sizebuf)
