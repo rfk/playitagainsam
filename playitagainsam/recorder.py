@@ -117,7 +117,8 @@ class Recorder(SocketCoordinator):
 
     def _handle_open_terminal(self, client_sock):
         # Fork a new shell behind a pty.
-        proc_pid, proc_fd = forkexec_pty([self.shell])
+        env = {"TERM": "vt100"}
+        proc_pid, proc_fd = forkexec_pty([self.shell], env=env)
         # Assign a new id for the terminal
         term = uuid.uuid4().hex
         self.terminals[term] = client_sock, proc_fd, proc_pid
