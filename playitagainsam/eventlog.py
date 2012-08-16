@@ -44,6 +44,15 @@ class EventLog(object):
                 # Collapse consecutive writes into a single chunk.
                 if self.events[-1]["act"] == "WRITE":
                     self.events[-1]["data"] += event["data"]
+                    # Collapse DEL and term wiping into a no-op.
+                    if self.events[-1]["data"] == "\x08\x1b[K":
+                        if len(self.events) >= 3:
+                            e_echo, e_del = self.events[-3:-1]
+                            if e_echo["act"] == "ECHO":
+                                if e_del["act"] == "READ":
+                                    if e_del["data"] == "\x7f":
+                                        del self.events[-2:]
+                                        e_echo["data"] = e_echo["data"][:-1]
                     return
                 # Collapse read/write of same data into an "ECHO".
                 if self.events[-1]["act"] == "READ":
