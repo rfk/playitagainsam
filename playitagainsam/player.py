@@ -81,7 +81,7 @@ class Player(SocketCoordinator):
 
     def _do_write(self, term, data):
         view_sock = self.terminals[term][0]
-        view_sock.sendall(data)
+        view_sock.sendall(data.encode('utf8'))
 
 
 def join_player(sock_path, **kwds):
