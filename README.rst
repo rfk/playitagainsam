@@ -45,4 +45,3 @@ process in one terminal and a client process in another.  Join a new terminal
 to an existing recording session like this::
 
     $ pias --join record <output-file>
-
