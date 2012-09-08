@@ -34,7 +34,7 @@ written into the output file as a JSON document.
 
 Replay a recorded session like this::
 
-    $ pias replay <input-file>
+    $ pias play <input-file>
 
 This will start a simulated playback of the original shell.  Press any keys
 to type, and hit "enter" when you reach the end of a line.
@@ -87,6 +87,10 @@ def main(argv, env=None):
     if env is None:
         env = os.environ
 
+    # Some default values for our options are taken from the environment.
+    # This allows the player to spawn copies of itself without having to
+    # pass command-line options, which can be awkward or impossible depending
+    # on the terminal program in use.
     argv = list(argv)
     if len(argv) == 1 and "PIAS_OPT_COMMAND" in env:
         argv.append(env["PIAS_OPT_COMMAND"])
@@ -108,14 +112,15 @@ def main(argv, env=None):
                                help="the shell to execute",
                                default=util.get_default_shell())
 
-    # The "replay" command.
-    parser_replay = subparsers.add_parser("replay")
-    parser_replay.add_argument("datafile",
-                               nargs="?" if default_datafile else 1,
-                               default=[default_datafile])
-    parser_replay.add_argument("--terminal",
-                               help="the terminal program to execute",
-                               default=util.get_default_terminal())
+    # The "play" command.
+    
+    parser_play = subparsers.add_parser("play", aliases=["replay"])
+    parser_play.add_argument("datafile",
+                             nargs="?" if default_datafile else 1,
+                             default=[default_datafile])
+    parser_play.add_argument("--terminal",
+                             help="the terminal program to execute",
+                             default=util.get_default_terminal())
 
     args = parser.parse_args(argv[1:])
 
@@ -123,6 +128,8 @@ def main(argv, env=None):
     sock_path = args.datafile + ".sock"
     if os.path.exists(sock_path) and not args.join:
         raise RuntimeError("session already in progress")
+
+    # Now we can dispatch to the appropriate command.
 
     recorder = player = eventlog = None
 
@@ -134,7 +141,7 @@ def main(argv, env=None):
                 recorder.start()
             join_recorder(sock_path)
 
-        elif args.subcommand == "replay":
+        elif args.subcommand in ("play", "replay"):
             if not args.join:
                 eventlog = EventLog(args.datafile, "r")
                 player = Player(sock_path, eventlog, args.terminal)
