@@ -30,7 +30,7 @@ written into the output file as a JSON document.
 
 Replay a recorded session like this::
 
-    $ pias replay <input-file>
+    $ pias play <input-file>
 
 This will start a simulated playback of the original shell.  Press any keys
 to type, and hit "enter" when you reach the end of a line.
@@ -47,6 +47,17 @@ to an existing recording session like this::
     $ pias --join record <output-file>
 
 
+There is also a javascript-based player that can be used to embed a recorded
+session into a HTML document.  This is useful for websites and HTML-based
+presentations.  The code is here:
+
+    https://github.com/rfk/playitagainsam-js/
+
+And an example presentation using this code is at:
+
+    https://github.com/rfk/talk-webapitesting/
+
+
 Gotchas
 -------
 
@@ -54,7 +65,7 @@ Getting this all running just right can be tricky business!  Here's some thing
 that you should be aware of:
 
   * All terminals should be using utf8 encoding, or you'll see strange output
-    and probably some outright errors. 
+    and probably some outright errors.
 
   * All terminals in a session should be the same size.  This restriction
     may go away in the future.

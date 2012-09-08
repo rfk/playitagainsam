@@ -51,6 +51,17 @@ to an existing recording session like this::
     $ pias --join record <output-file>
 
 
+There is also a javascript-based player that can be used to embed a recorded
+session into a HTML document.  This is useful for websites and HTML-based
+presentations.  The code is here:
+
+    https://github.com/rfk/playitagainsam-js/
+
+And an example presentation using this code is at:
+
+    https://github.com/rfk/talk-webapitesting/
+
+
 Gotchas
 -------
 
