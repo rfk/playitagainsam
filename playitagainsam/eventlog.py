@@ -70,6 +70,12 @@ class EventLog(object):
                                     self.events[-2]["data"] += event["data"]
                                     del self.events[-1]
                         return
+        # A CLOSE then OPEN of the same terminal is a no-op.
+        if event["act"] == "OPEN" and self.events:
+            if self.events[-1]["act"] == "CLOSE":
+                if self.events[-1]["term"] == event["term"]:
+                    del self.events[-1]
+                    return
         # Otherwise, just add it to the list.
         self.events.append(event)
 

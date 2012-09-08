@@ -132,8 +132,16 @@ class Recorder(SocketCoordinator):
     def _handle_open_terminal(self, client_sock):
         # Fork a new shell behind a pty.
         proc_pid, proc_fd = forkexec_pty([self.shell])
-        # Assign a new id for the terminal
-        term = uuid.uuid4().hex
+        # Assign a new id for the terminal.
+        # As a special case, the first terminal created when appending to
+        # an existing session will re-use the last-known terminal uuid.
+        term = None
+        if not self.terminals and self.eventlog.events:
+            last_event = self.eventlog.events[-1]
+            if last_event["act"] == "CLOSE":
+                term = last_event.get("term")
+        if term is None:
+            term = uuid.uuid4().hex
         self.terminals[term] = client_sock, proc_fd, proc_pid
         self.view_fds[client_sock.fileno()] = term
         self.proc_fds[proc_fd] = term
