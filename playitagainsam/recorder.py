@@ -13,6 +13,8 @@ import os
 import time
 import uuid
 
+import six
+
 from playitagainsam.util import forkexec_pty, get_default_shell, get_terminal_size
 from playitagainsam.coordinator import SocketCoordinator, proxy_to_coordinator
 
@@ -95,6 +97,9 @@ class Recorder(SocketCoordinator):
             view_fd = self.terminals[term][0].fileno()
             # Loop through one character at a time, consuming as
             # much output from the process as is available.
+            # We buffer it and write it to the eventlog as a single event,
+            # because multiple bytes might be part of a single utf8 char.
+            proc_output = []
             proc_ready = [proc_fd]
             while proc_ready:
                 try:
@@ -102,18 +107,26 @@ class Recorder(SocketCoordinator):
                     if not c:
                         raise OSError
                 except OSError:
+                    if proc_output:
+                        self.eventlog.write_event({
+                            "act": "WRITE",
+                            "term": term,
+                            "data": six.b("").join(proc_output),
+                        })
                     self._handle_close_terminal(term)
-                    proc_ready = []
+                    break
                 else:
-                    # Log it to the eventlog.
-                    self.eventlog.write_event({
-                        "act": "WRITE",
-                        "term": term,
-                        "data": c,
-                    })
-                    # Forward it to the corresponding terminal view.
+                    # Buffer it for writing, and forward it
+                    # to the corresponding terminal view.
+                    proc_output.append(c)
                     os.write(view_fd, c)
                     proc_ready = self.wait_for_data([proc_fd], 0)
+            else:
+                self.eventlog.write_event({
+                    "act": "WRITE",
+                    "term": term,
+                    "data": six.b("").join(proc_output),
+                })
 
     def _handle_open_terminal(self, client_sock):
         # Fork a new shell behind a pty.

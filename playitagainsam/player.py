@@ -76,7 +76,7 @@ class Player(SocketCoordinator):
 
     def _do_read(self, term, wanted):
         if isinstance(wanted, six.text_type):
-            wanted = wanted.encode("ascii")
+            wanted = wanted.encode("utf8")
         view_sock = self.terminals[term][0]
         c = view_sock.recv(1)
         if wanted in self.waypoint_chars:

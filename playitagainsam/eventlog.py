@@ -39,7 +39,7 @@ class EventLog(object):
         if six.PY3 and "data" in event:
             data = event["data"]
             if isinstance(data, six.binary_type):
-                event["data"] = data.decode("ascii")
+                event["data"] = data.decode("utf8")
         # We try to do some basic simplifications.
         # Collapse consecutive "PAUSE" events into a single pause.
         if event["act"] == "PAUSE":
