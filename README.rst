@@ -45,3 +45,16 @@ process in one terminal and a client process in another.  Join a new terminal
 to an existing recording session like this::
 
     $ pias --join record <output-file>
+
+
+Gotchas
+-------
+
+Getting this all running just right can be tricky business!  Here's some thing
+that you should be aware of:
+
+  * All terminals should be using utf8 encoding, or you'll see strange output
+    and probably some outright errors. 
+
+  * All terminals in a session should be the same size.  This restriction
+    may go away in the future.
