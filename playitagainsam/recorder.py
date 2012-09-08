@@ -90,7 +90,7 @@ class Recorder(SocketCoordinator):
                 os.write(proc_fd, c)
 
     def _handle_output(self):
-        ready = self.wait_for_data(self.proc_fds)
+        ready = self.wait_for_data(self.proc_fds, 0)
         # Process output from each ready process in turn.
         for proc_fd in ready:
             term = self.proc_fds[proc_fd]
@@ -130,8 +130,7 @@ class Recorder(SocketCoordinator):
 
     def _handle_open_terminal(self, client_sock):
         # Fork a new shell behind a pty.
-        env = {"TERM": "vt100"}
-        proc_pid, proc_fd = forkexec_pty([self.shell], env=env)
+        proc_pid, proc_fd = forkexec_pty([self.shell])
         # Assign a new id for the terminal
         term = uuid.uuid4().hex
         self.terminals[term] = client_sock, proc_fd, proc_pid
