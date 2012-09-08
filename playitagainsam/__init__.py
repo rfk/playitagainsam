@@ -75,6 +75,7 @@ __version__ = "%d.%d.%d%s" % __ver_tuple__
 
 
 import os
+import sys
 import argparse
 
 from playitagainsam.recorder import Recorder, join_recorder
@@ -113,7 +114,6 @@ def main(argv, env=None):
                                default=util.get_default_shell())
 
     # The "play" command.
-    
     parser_play = subparsers.add_parser("play", aliases=["replay"])
     parser_play.add_argument("datafile",
                              nargs="?" if default_datafile else 1,
@@ -125,9 +125,26 @@ def main(argv, env=None):
     args = parser.parse_args(argv[1:])
 
     args.datafile = args.datafile[0]
-    sock_path = args.datafile + ".sock"
+    sock_path = args.datafile + ".pias-session.sock"
+
+    # Sanity-check the arguments to avoid confusion.
+
+    def err(msg, *args):
+        if args:
+            msg = msg % args
+        print>>sys.stderr, msg
+
     if os.path.exists(sock_path) and not args.join:
-        raise RuntimeError("session already in progress")
+        err("Error: a recording session is already in progress.")
+        err("You can:")
+        err(" * use the --join option to join it as a new terminal.")
+        err(" * remove the file %s to clean up a dead session.", sock_path)
+        return 1
+
+    if not os.path.exists(sock_path) and args.join:
+        err("Error: no recording session is currently in progress.")
+        err("Execute without the --join option to begin a new session.")
+        return 1
 
     # Now we can dispatch to the appropriate command.
 
@@ -147,6 +164,9 @@ def main(argv, env=None):
                 player = Player(sock_path, eventlog, args.terminal)
                 player.start()
             join_player(sock_path)
+
+        else:
+            raise RuntimeError("Unknown command %r" % (args.subcommand,))
 
     finally:
         if eventlog is not None:
