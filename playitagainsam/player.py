@@ -22,10 +22,19 @@ class Player(SocketCoordinator):
 
     waypoint_chars = (six.b("\n"), six.b("\r"))
 
-    def __init__(self, sock_path, eventlog, terminal=None):
+    def __init__(self, sock_path, eventlog, terminal=None, auto_type=False,
+                 auto_waypoint=False):
         super(Player, self).__init__(sock_path)
         self.eventlog = eventlog
         self.terminal = terminal or get_default_terminal()
+        if not auto_type:
+            self.auto_type = False
+        else:
+            self.auto_type = auto_type / 1000.0
+        if not auto_waypoint:
+            self.auto_waypoint = False
+        else:
+            self.auto_waypoint = auto_waypoint / 1000.0
         self.terminals = {}
         self.view_fds = {}
 
@@ -69,17 +78,37 @@ class Player(SocketCoordinator):
 
     def _do_close_terminal(self, term):
         view_sock, = self.terminals[term]
-        c = view_sock.recv(1)
-        while c not in self.waypoint_chars:
-            c = view_sock.recv(1)
+        self._do_read_waypoint(view_sock)
         view_sock.close()
 
     def _do_read(self, term, wanted):
         if isinstance(wanted, six.text_type):
             wanted = wanted.encode("utf8")
         view_sock = self.terminals[term][0]
-        c = view_sock.recv(1)
         if wanted in self.waypoint_chars:
+            self._do_read_waypoint(view_sock)
+        else:
+            self._do_read_nonwaypoint(view_sock)
+
+    def _do_read_nonwaypoint(self, view_sock):
+        # For non-waypoint characters, behaviour depends on auto-typing mode.
+        # we can can either wait for the user to type something, or just
+        # sleep briefly to simulate the typing.
+        if self.auto_type:
+            time.sleep(self.auto_type)
+        else:
+            c = view_sock.recv(1)
+            while c in self.waypoint_chars:
+                c = view_sock.recv(1)
+
+    def _do_read_waypoint(self, view_sock):
+        # For waypoint characters, behaviour depends on auto-waypoint mode.
+        # Either we just proceed automatically, or the user must actually
+        # type one before we proceed.
+        if self.auto_waypoint:
+            time.sleep(self.auto_waypoint)
+        else:
+            c = view_sock.recv(1)
             while c not in self.waypoint_chars:
                 c = view_sock.recv(1)
 

@@ -43,6 +43,13 @@ to type, and hit "enter" when you reach the end of a line.
 Extra Features
 --------------
 
+Playitagainsam has some extra features that distinguish it from similar
+solutions.
+
+
+Multiple Terminals
+~~~~~~~~~~~~~~~~~~
+
 It's possible to record activity in several terminals simultaneously as part
 of a single session, which can be useful for e.g. demonstrating a server
 process in one terminal and a client process in another.  Join a new terminal
@@ -51,9 +58,29 @@ to an existing recording session like this::
     $ pias --join record <output-file>
 
 
-There is also a javascript-based player that can be used to embed a recorded
-session into a HTML document.  This is useful for websites and HTML-based
-presentations.  The code is here:
+Choice of Manual or Automated Typing
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+While the default playback mode assumes interactive typing, it is also possible
+to have pias type automatically for you.  You can have it enter individual
+commands but wait for you to manually trigger each newline like this::
+
+    $ pias play <input-file> --auto-type
+
+Or you can have it automatically type all input like this::
+
+    $ pias play <input-file> --auto-type --auto-waypoint
+
+These options both accept an integer millisecond value which will control the
+speed of the automated typing.
+
+
+JavaScript Player
+~~~~~~~~~~~~~~~~~
+
+There is a javascript-based player that can be used to embed a recorded session
+into a HTML document.  This is useful for websites or HTML-based presentations.
+The code is here:
 
     https://github.com/rfk/playitagainsam-js/
 
@@ -139,6 +166,12 @@ def main(argv, env=None):
     parser_play.add_argument("--terminal",
                              help="the terminal program to execute",
                              default=util.get_default_terminal())
+    parser_play.add_argument("--auto-type", type=int, nargs="?", const=100,
+                             help="automatically type at this speed in ms",
+                             default=False)
+    parser_play.add_argument("--auto-waypoint", type=int, nargs="?", const=600,
+                             help="auto type newlines at this speed in ms",
+                             default=False)
 
     # The "replay" alias for the "play" command.
     # Python2.7 argparse doesn't seem to have proper support for aliases.
@@ -199,7 +232,8 @@ def main(argv, env=None):
         elif args.subcommand in ("play", "replay"):
             if not args.join:
                 eventlog = EventLog(args.datafile, "r")
-                player = Player(sock_path, eventlog, args.terminal)
+                player = Player(sock_path, eventlog, args.terminal,
+                                args.auto_type, args.auto_waypoint)
                 player.start()
             join_player(sock_path)
 
