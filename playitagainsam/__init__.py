@@ -121,7 +121,7 @@ def main(argv, env=None):
                                default=False)
 
     # The "play" command.
-    parser_play = subparsers.add_parser("play", aliases=["replay"])
+    parser_play = subparsers.add_parser("play")
     parser_play.add_argument("datafile",
                              nargs="?" if default_datafile else 1,
                              default=[default_datafile])
@@ -129,12 +129,17 @@ def main(argv, env=None):
                              help="the terminal program to execute",
                              default=util.get_default_terminal())
 
+    # The "replay" alias for the "play" command.
+    # Python2.7 argparse doesn't seem to have proper support for aliases.
+    subparsers.add_parser("replay", parents=(parser_play,),
+                          conflict_handler="resolve")
+
+    # Parse the arguments and do some addition sanity-checking.
+
     args = parser.parse_args(argv[1:])
 
     args.datafile = args.datafile[0]
     sock_path = args.datafile + ".pias-session.sock"
-
-    # Sanity-check the arguments to avoid confusion.
 
     def err(msg, *args):
         if args:
