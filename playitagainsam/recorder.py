@@ -15,7 +15,8 @@ import uuid
 
 import six
 
-from playitagainsam.util import forkexec_pty, get_default_shell, get_terminal_size
+from playitagainsam.util import forkexec_pty, get_default_shell
+from playitagainsam.util import get_terminal_size
 from playitagainsam.coordinator import SocketCoordinator, proxy_to_coordinator
 
 

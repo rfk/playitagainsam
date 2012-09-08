@@ -13,7 +13,6 @@ import tty
 import pty
 import termios
 import fcntl
-import struct
 import array
 
 import psutil

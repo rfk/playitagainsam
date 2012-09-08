@@ -58,7 +58,7 @@ Getting this all running just right can be tricky business!  Here's some thing
 that you should be aware of:
 
   * All terminals should be using utf8 encoding, or you'll see strange output
-    and probably some outright errors. 
+    and probably some outright errors.
 
   * All terminals in a session should be the same size.  This restriction
     may go away in the future.

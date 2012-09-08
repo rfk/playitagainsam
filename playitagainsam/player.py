@@ -12,7 +12,7 @@ import time
 import six
 
 from playitagainsam.util import forkexec, get_default_terminal
-from playitagainsam.util import get_pias_script, set_terminal_size
+from playitagainsam.util import get_pias_script
 from playitagainsam.coordinator import SocketCoordinator, proxy_to_coordinator
 
 # XXX TODO: set the size of each terminal
