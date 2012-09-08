@@ -112,6 +112,13 @@ def main(argv, env=None):
     parser_record.add_argument("--shell",
                                help="the shell to execute",
                                default=util.get_default_shell())
+    datafile_opts = parser_record.add_mutually_exclusive_group()
+    datafile_opts.add_argument("--append", action="store_true",
+                               help="append to an existing session file",
+                               default=False)
+    datafile_opts.add_argument("-f", "--overwrite", action="store_true",
+                               help="overwrite an existing session file",
+                               default=False)
 
     # The "play" command.
     parser_play = subparsers.add_parser("play", aliases=["replay"])
@@ -137,14 +144,29 @@ def main(argv, env=None):
     if os.path.exists(sock_path) and not args.join:
         err("Error: a recording session is already in progress.")
         err("You can:")
-        err(" * use the --join option to join it as a new terminal.")
-        err(" * remove the file %s to clean up a dead session.", sock_path)
+        err(" * use --join to join the session as a new terminal.")
+        err(" * remove the file %r to clean up a dead session.", sock_path)
         return 1
 
     if not os.path.exists(sock_path) and args.join:
         err("Error: no recording session is currently in progress.")
-        err("Execute without the --join option to begin a new session.")
+        err("Execute without --join to begin a new session.")
         return 1
+
+    if args.subcommand == "record" and os.path.exists(args.datafile):
+        if not args.join and not args.append and not args.overwrite:
+            err("Error: the recording data file already exists.")
+            err("You can:")
+            err(" * use --append to add data to an existing recording.")
+            err(" * use --overwrite to overwrite an existing recording.")
+            err(" * manually remove the file %r.", args.datafile)
+            return 1
+
+    if args.subcommand == "record" and not os.path.exists(args.datafile):
+        if not args.join and args.append:
+            err("Error: the recording data file does not exist.")
+            err("Execute without --append to begin a new recording.")
+            return 1
 
     # Now we can dispatch to the appropriate command.
 
@@ -153,7 +175,7 @@ def main(argv, env=None):
     try:
         if args.subcommand == "record":
             if not args.join:
-                eventlog = EventLog(args.datafile, "w")
+                eventlog = EventLog(args.datafile, "a" if args.append else "w")
                 recorder = Recorder(sock_path, eventlog, args.shell)
                 recorder.start()
             join_recorder(sock_path)

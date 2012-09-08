@@ -7,10 +7,12 @@ playitagainsam.eventlog:  event reader/writer for playitagainsam
 
 """
 
+import os
 import json
 
-import six
+from tempfile import NamedTemporaryFile
 
+import six
 
 
 class EventLog(object):
@@ -18,7 +20,7 @@ class EventLog(object):
     def __init__(self, datafile, mode):
         self.datafile = datafile
         self.mode = mode
-        if mode == "r":
+        if mode == "r" or mode == "a":
             with open(self.datafile, "r") as f:
                 data = json.loads(f.read())
             self.events = data["events"]
@@ -28,10 +30,14 @@ class EventLog(object):
 
     def close(self):
         if self.mode != "r":
-            with open(self.datafile, "w") as f:
+            dirnm, basenm = os.path.split(self.datafile)
+            tf = NamedTemporaryFile(prefix=basenm, dir=dirnm, delete=False)
+            with tf:
                 data = {"events": self.events}
                 output = json.dumps(data, indent=2, sort_keys=True)
-                f.write(output)
+                tf.write(output.encode("utf8"))
+                tf.flush()
+                os.rename(tf.name, self.datafile)
 
     def write_event(self, event):
         # Append an event to the event log.
