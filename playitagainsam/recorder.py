@@ -91,7 +91,7 @@ class Recorder(SocketCoordinator):
                 os.write(proc_fd, c)
 
     def _handle_output(self):
-        ready = self.wait_for_data(self.proc_fds, 0)
+        ready = self.wait_for_data(self.proc_fds, 0.01)
         # Process output from each ready process in turn.
         for proc_fd in ready:
             term = self.proc_fds[proc_fd]
