@@ -9,6 +9,9 @@ playitagainsam.eventlog:  event reader/writer for playitagainsam
 
 import json
 
+import six
+
+
 
 class EventLog(object):
 
@@ -32,6 +35,11 @@ class EventLog(object):
 
     def write_event(self, event):
         # Append an event to the event log.
+        # Since we'll be writing JSON, we need to ensure serializability.
+        if six.PY3 and "data" in event:
+            data = event["data"]
+            if isinstance(data, six.binary_type):
+                event["data"] = data.decode("ascii")
         # We try to do some basic simplifications.
         # Collapse consecutive "PAUSE" events into a single pause.
         if event["act"] == "PAUSE":

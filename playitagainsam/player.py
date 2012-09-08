@@ -9,6 +9,8 @@ playitagainsam.player: replay interactive terminal sessions
 
 import time
 
+import six
+
 from playitagainsam.util import forkexec, get_default_terminal
 from playitagainsam.util import get_pias_script, set_terminal_size
 from playitagainsam.coordinator import SocketCoordinator, proxy_to_coordinator
@@ -18,7 +20,7 @@ from playitagainsam.coordinator import SocketCoordinator, proxy_to_coordinator
 
 class Player(SocketCoordinator):
 
-    waypoint_chars = ("\n", "\r")
+    waypoint_chars = (six.b("\n"), six.b("\r"))
 
     def __init__(self, sock_path, eventlog, terminal=None):
         super(Player, self).__init__(sock_path)
@@ -73,6 +75,8 @@ class Player(SocketCoordinator):
         view_sock.close()
 
     def _do_read(self, term, wanted):
+        if isinstance(wanted, six.text_type):
+            wanted = wanted.encode("ascii")
         view_sock = self.terminals[term][0]
         c = view_sock.recv(1)
         if wanted in self.waypoint_chars:
@@ -81,7 +85,9 @@ class Player(SocketCoordinator):
 
     def _do_write(self, term, data):
         view_sock = self.terminals[term][0]
-        view_sock.sendall(data.encode('utf8'))
+        if isinstance(data, six.text_type):
+            data = data.encode("utf8")
+        view_sock.sendall(data)
 
 
 def join_player(sock_path, **kwds):
