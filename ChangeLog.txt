@@ -1,4 +1,9 @@
 
+NEXT:
+
+  * Don't crash when given multi-byte utf8 input sequences.
+
+
 v0.2.0:
 
   * Add options for automated typing.

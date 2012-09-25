@@ -74,21 +74,32 @@ class Recorder(SocketCoordinator):
 
     def _handle_input(self, view_fd):
         try:
-            c = os.read(view_fd, 1)
+            # We assume all I/O is in utf8, so we need to read
+            # a complete utf8 character before doing anything else.
+            # This might be encoded into multiple bytes of input.
+            c = None
+            input = self._read_one_byte(view_fd)
+            while c is None:
+                try:
+                    c = input.decode("utf8")
+                except UnicodeDecodeError:
+                    # No valid utf8 sequence is longer than 6 bytes.
+                    if len(input) >= 6:
+                        raise
+                    input += self._read_one_byte(view_fd)
         except OSError:
             pass
         else:
-            if c:
-                term = self.view_fds[view_fd]
-                proc_fd = self.terminals[term][1]
-                # Log it to the eventlog.
-                self.eventlog.write_event({
-                    "act": "READ",
-                    "term": term,
-                    "data": c,
-                })
-                # Forward it to the corresponding terminal process.
-                os.write(proc_fd, c)
+            term = self.view_fds[view_fd]
+            proc_fd = self.terminals[term][1]
+            # Log it to the eventlog.
+            self.eventlog.write_event({
+                "act": "READ",
+                "term": term,
+                "data": c,
+            })
+            # Forward it to the corresponding terminal process.
+            os.write(proc_fd, input)
 
     def _handle_output(self):
         ready = self.wait_for_data(self.proc_fds, 0.01)
@@ -104,9 +115,7 @@ class Recorder(SocketCoordinator):
             proc_ready = [proc_fd]
             while proc_ready:
                 try:
-                    c = os.read(proc_fd, 1)
-                    if not c:
-                        raise OSError
+                    c = self._read_one_byte(proc_fd)
                 except OSError:
                     if proc_output:
                         self.eventlog.write_event({
@@ -126,8 +135,15 @@ class Recorder(SocketCoordinator):
                 self.eventlog.write_event({
                     "act": "WRITE",
                     "term": term,
-                    "data": six.b("").join(proc_output),
+                    "data": six.b("").join(proc_output).decode("utf8"),
                 })
+
+    def _read_one_byte(self, fd):
+        """Read a single byte, or raise OSError on failure."""
+        c = os.read(fd, 1)
+        if not c:
+            raise OSError
+        return c
 
     def _handle_open_terminal(self, client_sock):
         # Fork a new shell behind a pty.
