@@ -16,6 +16,7 @@ import fcntl
 import array
 
 import psutil
+import psutil._error
 
 from subprocess import MAXFD
 
@@ -105,7 +106,7 @@ def get_ancestor_processes():
             try:
                 _ANCESTOR_PROCESSES.append(proc.parent.exe)
                 proc = proc.parent
-            except psutil.error.Error:
+            except psutil._error.Error:
                 break
     return _ANCESTOR_PROCESSES
 

@@ -1,4 +1,8 @@
 
+PENDING:
+
+  * Update for changes in psutil API.
+
 v0.2.1:
 
   * Don't crash when given multi-byte utf8 input sequences.
