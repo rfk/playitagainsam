@@ -102,7 +102,10 @@ def proxy_to_coordinator(socket_path, header=None, stdin=None, stdout=None):
                     if c:
                         sock.send(c)
                 if sock in ready:
-                    c = sock.recv(1024)
+                    try:
+                        c = sock.recv(1024)
+                    except socket.error as e:
+                        break
                     if not c:
                         break
                     os.write(stdout_fd, c)
