@@ -14,16 +14,24 @@ from tempfile import NamedTemporaryFile
 
 import six
 
+from playitagainsam.util import get_default_shell
+
 
 class EventLog(object):
 
-    def __init__(self, datafile, mode):
+    def __init__(self, datafile, mode, shell, live_replay=False):
         self.datafile = datafile
         self.mode = mode
+        self.live_replay = live_replay
+        self.shell = shell
         if mode == "r" or mode == "a":
             with open(self.datafile, "r") as f:
                 data = json.loads(f.read())
             self.events = data["events"]
+            # for compatibility with older recorded sessions, 
+            # we'll get the default shell if none is in the eventlog
+            if live_replay:
+                self.shell = self.shell or data.get("shell", None) or get_default_shell()
             self._event_stream = None
         else:
             self.events = []
@@ -33,7 +41,7 @@ class EventLog(object):
             dirnm, basenm = os.path.split(self.datafile)
             tf = NamedTemporaryFile(prefix=basenm, dir=dirnm, delete=False)
             with tf:
-                data = {"events": self.events}
+                data = {"events": self.events, "shell": self.shell}
                 output = json.dumps(data, indent=2, sort_keys=True)
                 tf.write(output.encode("utf8"))
                 tf.flush()
@@ -92,9 +100,13 @@ class EventLog(object):
             if event["act"] == "ECHO":
                 for c in event["data"]:
                     yield {"act": "READ", "term": event["term"], "data": c}
-                    yield {"act": "WRITE", "term": event["term"], "data": c}
+                    if not self.live_replay:
+                        yield {"act": "WRITE", "term": event["term"], "data": c}
             elif event["act"] == "READ":
                 for c in event["data"]:
                     yield {"act": "READ", "term": event["term"], "data": c}
+            elif event["act"] == "WRITE":
+                if not self.live_replay:
+                    yield event
             else:
                 yield event

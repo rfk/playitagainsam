@@ -140,6 +140,9 @@ def main(argv, env=None):
     parser.add_argument("--join", action="store_true",
                         help="join an existing record/replay session",
                         default=env.get("PIAS_OPT_JOIN", False))
+    parser.add_argument("--shell",
+                        help="the shell to execute when recording or live-replaying",
+                        default=util.get_default_shell())
     subparsers = parser.add_subparsers(dest="subcommand", title="subcommands")
 
     # The "record" command.
@@ -147,9 +150,6 @@ def main(argv, env=None):
     parser_record.add_argument("datafile",
                                nargs="?" if default_datafile else 1,
                                default=[default_datafile])
-    parser_record.add_argument("--shell",
-                               help="the shell to execute",
-                               default=util.get_default_shell())
     datafile_opts = parser_record.add_mutually_exclusive_group()
     datafile_opts.add_argument("--append", action="store_true",
                                help="append to an existing session file",
@@ -171,6 +171,9 @@ def main(argv, env=None):
                              default=False)
     parser_play.add_argument("--auto-waypoint", type=int, nargs="?", const=600,
                              help="auto type newlines at this speed in ms",
+                             default=False)
+    parser_play.add_argument("--live-replay", action="store_true",
+                             help="recorded input is passed to a live session, and recorded oputput is ignored",
                              default=False)
 
     # The "replay" alias for the "play" command.
@@ -224,16 +227,18 @@ def main(argv, env=None):
     try:
         if args.subcommand == "record":
             if not args.join:
-                eventlog = EventLog(args.datafile, "a" if args.append else "w")
+                eventlog = EventLog(args.datafile, "a" if args.append else "w", args.shell)
                 recorder = Recorder(sock_path, eventlog, args.shell)
                 recorder.start()
             join_recorder(sock_path)
 
         elif args.subcommand in ("play", "replay"):
             if not args.join:
-                eventlog = EventLog(args.datafile, "r")
-                player = Player(sock_path, eventlog, args.terminal,
-                                args.auto_type, args.auto_waypoint)
+                eventlog = EventLog(args.datafile, "r", args.shell, live_replay=args.live_replay)
+                shell = args.shell or eventlog.shell 
+                player = Player(sock_path, eventlog, args.terminal, 
+                                args.auto_type, args.auto_waypoint, 
+                                args.live_replay, args.shell)
                 player.start()
             join_player(sock_path)
 
