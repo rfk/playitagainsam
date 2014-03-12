@@ -75,6 +75,29 @@ These options both accept an integer millisecond value which will control the
 speed of the automated typing.
 
 
+Canned Replay or Live Replay?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The default playback mode outputs back the 'canned' output text from the
+original terminal session(s), without any side effects.  However, the side 
+effects might be desirable during the presentation. 
+
+For instance, when demoing a REST API, the presenter might want to show the 
+effects of the API calls on a service using a browser.  Or the demoed code 
+could drive some other non-console output, like a visualisation or a game. 
+
+The --live-replay option connects the prerecorded input to a live shell for
+actual live output and side effects:
+
+    $ pias play <input-file> --live-replay
+
+This option is composable with the previous ones:
+
+    $ pias play <input-file> --live-replay --auto-type --auto-waypoint
+
+Live replay also works two or more joined terminal sessions.
+
+
 JavaScript Player
 ~~~~~~~~~~~~~~~~~
 
@@ -101,11 +124,22 @@ that you should be aware of:
   * All terminals in a session should be the same size.  This restriction
     may go away in the future.
 
+  * The live-replay option has its own particularities:
+
+    * Sessions created with the --append switch won't continue after the first
+      recording session ends.
+
+    * Sometimes keypresses "bounce", and double characters get inserted.
+
+    * Some live-replay output sequences lasting longer than the corresponding
+      output in the recording session can get buffered waiting for the next 
+      user action.
+
 """
 
 __ver_major__ = 0
-__ver_minor__ = 2
-__ver_patch__ = 1
+__ver_minor__ = 3
+__ver_patch__ = 0
 __ver_sub__ = ""
 __ver_tuple__ = (__ver_major__, __ver_minor__, __ver_patch__, __ver_sub__)
 

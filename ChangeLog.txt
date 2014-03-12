@@ -1,6 +1,7 @@
 
-PENDING:
+v0.3.0:
 
+  * Add --live-reply option for driving live programs from recorded session.
   * Update for changes in psutil API.
 
 v0.2.1:

@@ -16,7 +16,6 @@ import fcntl
 import array
 
 import psutil
-import psutil._error
 
 from subprocess import MAXFD
 
@@ -102,11 +101,11 @@ def get_ancestor_processes():
     """Get a list of the executables of all ancestor processes."""
     if not _ANCESTOR_PROCESSES:
         proc = psutil.Process(os.getpid())
-        while proc.parent is not None:
+        while proc.parent() is not None:
             try:
-                _ANCESTOR_PROCESSES.append(proc.parent.exe)
-                proc = proc.parent
-            except psutil._error.Error:
+                _ANCESTOR_PROCESSES.append(proc.parent().exe())
+                proc = proc.parent()
+            except psutil.Error:
                 break
     return _ANCESTOR_PROCESSES
 
