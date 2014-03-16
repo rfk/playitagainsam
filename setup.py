@@ -77,7 +77,7 @@ setup(name=NAME,
       keywords=KEYWORDS,
       packages=["playitagainsam"],
       scripts=["scripts/pias"],
-      install_requires=["psutil", "six"],
+      install_requires=["psutil>=2.0", "six"],
       classifiers=CLASSIFIERS,
       **setup_kwds
      )
