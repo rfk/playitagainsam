@@ -29,7 +29,7 @@ class Player(SocketCoordinator):
                  auto_waypoint=False, live_replay=False, replay_shell=None):
         super(Player, self).__init__(sock_path)
         self.eventlog = eventlog
-        self.terminal = terminal or get_default_terminal()
+        self.terminal = terminal
         self.live_replay = live_replay
         self.replay_shell = replay_shell
         if not auto_type:
@@ -90,7 +90,8 @@ class Player(SocketCoordinator):
             env["PIAS_OPT_COMMAND"] = "replay"
             env["PIAS_OPT_DATAFILE"] = self.eventlog.datafile
             env["PIAS_OPT_TERMINAL"] = self.terminal
-            forkexec([self.terminal, "-e", get_pias_script()], env)
+            cmd = self.terminal or get_default_terminal()
+            forkexec([cmd, "-e", get_pias_script()], env)
         view_sock, _ = self.sock.accept()
 
         if self.live_replay:
