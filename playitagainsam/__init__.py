@@ -176,7 +176,7 @@ def main(argv, env=None):
                         default=env.get("PIAS_OPT_JOIN", False))
     parser.add_argument("--shell",
                         help="the shell to execute when recording or live-replaying",
-                        default=util.get_default_shell())
+                        default=util.get_default_shell(fallback=None))
     subparsers = parser.add_subparsers(dest="subcommand", title="subcommands")
 
     # The "record" command.
@@ -199,7 +199,7 @@ def main(argv, env=None):
                              default=[default_datafile])
     parser_play.add_argument("--terminal",
                              help="the terminal program to execute",
-                             default=util.get_default_terminal())
+                             default=util.get_default_terminal(fallback=None))
     parser_play.add_argument("--auto-type", type=int, nargs="?", const=100,
                              help="automatically type at this speed in ms",
                              default=False)

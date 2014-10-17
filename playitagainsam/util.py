@@ -20,6 +20,15 @@ import psutil
 from subprocess import MAXFD
 
 
+class _UNSPECIFIED(object):
+    """A unique object for unspecified arguments.
+
+    We use this as the default value of arguments that might profitably take
+    an explicit value of None.
+    """
+    pass
+
+
 class no_echo(object):
     """Context-manager that blocks echoing of keys typed in tty."""
 
@@ -110,7 +119,7 @@ def get_ancestor_processes():
     return _ANCESTOR_PROCESSES
 
 
-def get_default_shell(environ=None):
+def get_default_shell(environ=None, fallback=_UNSPECIFIED):
     """Get the user's default shell program."""
     if environ is None:
         environ = os.environ
@@ -131,10 +140,13 @@ def get_default_shell(environ=None):
     # Otherwise use the first option that we found.
     for shell in shells:
         return shell
+    # Use an explicit fallback option if given.
+    if fallback is not _UNSPECIFIED:
+        return fallback
     raise ValueError("Could not find a shell")
 
 
-def get_default_terminal(environ=None):
+def get_default_terminal(environ=None, fallback=_UNSPECIFIED):
     """Get the user's default terminal program."""
     if environ is None:
         environ = os.environ
@@ -156,6 +168,9 @@ def get_default_terminal(environ=None):
     # Otherwise use the first option that we found.
     for term in terminals:
         return term
+    # Use an explicit fallback option if given.
+    if fallback is not _UNSPECIFIED:
+        return fallback
     raise ValueError("Could not find a terminal")
 
 
