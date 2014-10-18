@@ -42,6 +42,10 @@ class Player(SocketCoordinator):
             self.auto_waypoint = auto_waypoint / 1000.0
         self.terminals = {}
         self.proc_fds = {}
+        # Ensure we have a terminal cmd if we know one will be needed.
+        if len(eventlog.terminals) > 1:
+            if self.terminal is None:
+                self.terminal = get_default_terminal()
 
     def run(self):
         event = self.eventlog.read_event()

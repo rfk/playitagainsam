@@ -35,6 +35,12 @@ class EventLog(object):
             self._event_stream = None
         else:
             self.events = []
+        self.terminals = set()
+        for event in self.events:
+            try:
+                self.terminals.add(event["term"])
+            except KeyError:
+                pass
 
     def close(self):
         if self.mode != "r":
