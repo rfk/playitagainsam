@@ -207,7 +207,7 @@ def main(argv, env=None):
                              help="auto type newlines at this speed in ms",
                              default=False)
     parser_play.add_argument("--live-replay", action="store_true",
-                             help="recorded input is passed to a live session, and recorded oputput is ignored",
+                             help="recorded input is passed to a live session, and recorded output is ignored",
                              default=False)
 
     # The "replay" alias for the "play" command.
