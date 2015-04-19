@@ -15,7 +15,10 @@ import termios
 import fcntl
 import array
 
-import psutil
+try:
+    import psutil
+except ImportError:
+    psutil = None
 
 from subprocess import MAXFD
 
@@ -108,7 +111,7 @@ _ANCESTOR_PROCESSES = []
 
 def get_ancestor_processes():
     """Get a list of the executables of all ancestor processes."""
-    if not _ANCESTOR_PROCESSES:
+    if not _ANCESTOR_PROCESSES and psutil is not None:
         proc = psutil.Process(os.getpid())
         while proc.parent() is not None:
             try:
