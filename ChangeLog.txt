@@ -1,3 +1,7 @@
+v0.4.0:
+  * Don't call get_default_terminal() if we don't need a terminal exe;
+    this avoids failing out on single-terminal sessions on OSX.
+  * Don't error out if psutil is unavailable.
 
 v0.3.0:
 
