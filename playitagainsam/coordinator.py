@@ -96,7 +96,10 @@ def proxy_to_coordinator(socket_path, header=None, stdin=None, stdout=None):
         stdout_fd = get_fd(stdout, sys.stdout)
         with no_echo(stdin_fd):
             while True:
-                ready, _, _ = select.select([stdin_fd, sock], [], [])
+                try:
+                    ready, _, _ = select.select([stdin_fd, sock], [], [])
+                except select.error:
+                    continue
                 if stdin_fd in ready:
                     c = os.read(stdin_fd, 1)
                     if c:

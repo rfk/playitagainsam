@@ -12,24 +12,27 @@ This module provides the ability to record interactive terminal sessions.
 import os
 import time
 import uuid
+import queue
+import thread
 
 import six
 
 from playitagainsam.util import forkexec_pty, get_default_shell
-from playitagainsam.util import get_terminal_size
+from playitagainsam.util import get_terminal_size, set_terminal_size
 from playitagainsam.coordinator import SocketCoordinator, proxy_to_coordinator
 
 
 class Recorder(SocketCoordinator):
     """Object for recording activity in a session."""
 
-    def __init__(self, sock_path, eventlog, shell=None):
+    def __init__(self, sock_path, eventlog, resize_event, shell=None):
         super(Recorder, self).__init__(sock_path)
         self.eventlog = eventlog
         self.shell = shell or get_default_shell()
         self.terminals = {}
         self.view_fds = {}
         self.proc_fds = {}
+        self.resize_event = resize_event
 
     def run(self):
         # Loop waiting for the first terminal to be opened.
@@ -38,6 +41,8 @@ class Recorder(SocketCoordinator):
             if self.sock in ready:
                 client_sock, _ = self.sock.accept()
                 self._handle_open_terminal(client_sock)
+        # Startup the resize_event_thread to resize terminals.
+        thread.start_new_thread(self._resize_event_thread, tuple())
         # Loop waiting for activity to occur, or all terminals to close.
         while self.terminals:
             # Time how long it takes, in case we need to trigger output
@@ -100,6 +105,15 @@ class Recorder(SocketCoordinator):
             })
             # Forward it to the corresponding terminal process.
             os.write(proc_fd, input)
+
+    def _resize_event_thread(self):
+        # Check if we have a resize event.
+        for _ in iter(self.resize_event.get, None):
+            size = get_terminal_size(1)
+            for term in self.terminals:
+                _unused_1, proc_fd, _unused_2 = self.terminals[term]
+                set_terminal_size(proc_fd, size)
+
 
     def _handle_output(self):
         ready = self.wait_for_data(self.proc_fds, 0.01)
