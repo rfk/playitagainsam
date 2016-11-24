@@ -216,8 +216,9 @@ def main(argv, env=None):
                           conflict_handler="resolve")
 
     # Parse the arguments and do some addition sanity-checking.
-
     args = parser.parse_args(argv[1:])
+    if not args.subcommand:
+        parser.error("too few arguments")
 
     args.datafile = args.datafile[0]
     sock_path = args.datafile + ".pias-session.sock"
@@ -225,7 +226,7 @@ def main(argv, env=None):
     def err(msg, *args):
         if args:
             msg = msg % args
-        print>>sys.stderr, msg
+        sys.stderr.write(msg + '\n')
 
     if os.path.exists(sock_path) and not args.join:
         err("Error: a recording session is already in progress.")

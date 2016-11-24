@@ -97,7 +97,7 @@ class EventLog(object):
         if self._event_stream is None:
             self._event_stream = self._iter_events()
         try:
-            return self._event_stream.next()
+            return next(self._event_stream)
         except StopIteration:
             return None
 

@@ -20,7 +20,16 @@ try:
 except ImportError:
     psutil = None
 
-from subprocess import MAXFD
+try:
+    from subprocess import MAXFD
+except ImportError:
+    # On Python 3 this is no longer there
+    # This is how it was done
+    try:
+        MAXFD = os.sysconf("SC_OPEN_MAX")
+    except:
+        MAXFD = 256
+
 
 
 class _UNSPECIFIED(object):

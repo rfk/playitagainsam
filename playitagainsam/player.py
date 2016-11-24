@@ -198,5 +198,5 @@ class Player(SocketCoordinator):
 
 def join_player(sock_path, **kwds):
     stdout_fd = get_fd(kwds.get("stdout"), sys.stdout)
-    os.write(stdout_fd, "\x1b[2J\x1b[H")
+    os.write(stdout_fd, b"\x1b[2J\x1b[H")
     return proxy_to_coordinator(sock_path, **kwds)
