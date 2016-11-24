@@ -226,7 +226,7 @@ def main(argv, env=None):
     def err(msg, *args):
         if args:
             msg = msg % args
-        print>>sys.stderr, msg
+        sys.stderr.write(msg + '\n')
 
     if os.path.exists(sock_path) and not args.join:
         err("Error: a recording session is already in progress.")
