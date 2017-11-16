@@ -206,6 +206,9 @@ def main(argv, env=None):
     parser_play.add_argument("--auto-waypoint", type=int, nargs="?", const=600,
                              help="auto type newlines at this speed in ms",
                              default=False)
+    parser_play.add_argument("--wait-after-waypoint", type=bool, nargs="?", const=True,
+                             help="wait for enter before proceeding after a waypoint",
+                             default=False)
     parser_play.add_argument("--live-replay", action="store_true",
                              help="recorded input is passed to a live session, and recorded output is ignored",
                              default=False)
@@ -272,7 +275,7 @@ def main(argv, env=None):
                 eventlog = EventLog(args.datafile, "r", args.shell, live_replay=args.live_replay)
                 shell = args.shell or eventlog.shell 
                 player = Player(sock_path, eventlog, args.terminal, 
-                                args.auto_type, args.auto_waypoint, 
+                                args.auto_type, args.auto_waypoint, args.wait_after_waypoint,
                                 args.live_replay, args.shell)
                 player.start()
             join_player(sock_path)
