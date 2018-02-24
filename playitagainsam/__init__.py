@@ -149,6 +149,8 @@ __version__ = "%d.%d.%d%s" % __ver_tuple__
 import os
 import sys
 import argparse
+import queue
+import signal
 
 from playitagainsam.recorder import Recorder, join_recorder
 from playitagainsam.player import Player, join_player
@@ -262,8 +264,16 @@ def main(argv, env=None):
     try:
         if args.subcommand == "record":
             if not args.join:
+                # Listen for terminal resize events and add them to the
+                # resize_window queue for the terminal code to handle.
+                # The main thread has to handle the signal.
+                resize_event = queue.Queue()
                 eventlog = EventLog(args.datafile, "a" if args.append else "w", args.shell)
-                recorder = Recorder(sock_path, eventlog, args.shell)
+                recorder = Recorder(sock_path, eventlog, resize_event, args.shell)
+                def resize_handler(signum, frame):
+                    resize_event.put(True)
+
+                signal.signal(signal.SIGWINCH, resize_handler)
                 recorder.start()
             join_recorder(sock_path)
 
