@@ -26,12 +26,15 @@ class Player(SocketCoordinator):
     waypoint_chars = (six.b("\n"), six.b("\r"))
 
     def __init__(self, sock_path, eventlog, terminal=None, auto_type=False,
-                 auto_waypoint=False, live_replay=False, replay_shell=None):
+                 auto_waypoint=False, wait_after_waypoint=False,
+                 live_replay=False, replay_shell=None):
         super(Player, self).__init__(sock_path)
         self.eventlog = eventlog
         self.terminal = terminal
         self.live_replay = live_replay
         self.replay_shell = replay_shell
+        self.wait_after_waypoint = wait_after_waypoint
+        self.last_read_was_waypoint = False
         if not auto_type:
             self.auto_type = False
         else:
@@ -122,6 +125,13 @@ class Player(SocketCoordinator):
         if isinstance(recorded, six.text_type):
             recorded = recorded.encode("utf8")
         view_sock = self.terminals[term][0]
+
+        if self.wait_after_waypoint and self.last_read_was_waypoint:
+            self.last_read_was_waypoint = False
+            c = view_sock.recv(1)
+            while c not in self.waypoint_chars:
+                c = view_sock.recv(1)
+
         if recorded in self.waypoint_chars:
             self._do_read_waypoint(view_sock, term, recorded)
         else:
@@ -149,6 +159,7 @@ class Player(SocketCoordinator):
         # For waypoint characters, behaviour depends on auto-waypoint mode.
         # Either we just proceed automatically, or the user must actually
         # type one before we proceed.
+        self.last_read_was_waypoint = True
         if self.auto_waypoint:
             time.sleep(self.auto_waypoint)
         else:
