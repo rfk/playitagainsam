@@ -1,3 +1,16 @@
+
+Status: Unmaintained
+====================
+
+.. image:: http://unmaintained.tech/badge.svg
+     :target: http://unmaintained.tech/
+     :alt: No Maintenance Intended
+
+I am `no longer actively maintaining this project <https://rfk.id.au/blog/entry/archiving-open-source-projects/>`_.
+I might still poke at it occasionally for my own use, please don't expect regular releases
+or responsiveness here on github.
+
+
 playitagainsam:  record and replay interactive terminal sessions
 ================================================================
 
