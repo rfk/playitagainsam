@@ -20,8 +20,6 @@ except ImportError:
     from distutils.core import setup
 else:
     setup_kwds["test_suite"] = "playitagainsam.tests"
-    if sys.version_info > (3,):
-        setup_kwds["use_2to3"] = True
 
 HERE = os.path.abspath(os.path.dirname(__file__))
 
