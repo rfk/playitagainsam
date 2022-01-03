@@ -138,7 +138,7 @@ that you should be aware of:
 """
 
 __ver_major__ = 0
-__ver_minor__ = 5
+__ver_minor__ = 6
 __ver_patch__ = 0
 __ver_sub__ = ""
 __ver_tuple__ = (__ver_major__, __ver_minor__, __ver_patch__, __ver_sub__)

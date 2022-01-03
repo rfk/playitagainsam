@@ -1,3 +1,7 @@
+v0.6.0
+
+  * Remove use of 2to3, for compatibility with newer setuptools; thanks @hroncok!
+
 v0.5.0
 
   * Fixes for  Python 3.5 compatibility; thanks @hroncok!
